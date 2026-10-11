@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Can an AI agent spot where a bank's anti-money-laundering policy falls short of both UAE regulators? An MSc thesis by Netra Uchil, told in 18 scrolls.">
+<meta property="og:title" content="One policy, two regulators">
+<meta property="og:description" content="Four AI agent designs, 300 test policies, one surprising finding about AML compliance in the UAE.">
+<meta property="og:type" content="article">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>One Policy, Two Regulators</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a "case file" — narrative margin notes scroll on the left, a sticky evidence board on the right changes with each note. On phones the board pins to the top half. */
+:root{
+  --bg:#F3EDE4; --surface:#FAF6F0; --ink:#241A15; --muted:#6E6056; --rule:#DED3C5;
+  --accent:#8A1538; --mark:#EBCBD2; --mark-ink:#241A15; --gap:#8A1538; --ok:#3F6B2E;
+  --rag:#2F5597; --react:#C0601C; --pe:#1E8466; --hyb:#7A3E78;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1A1411; --surface:#241D19; --ink:#F1E9DF; --muted:#AC9D90; --rule:#3B312A;
+  --accent:#E07A93; --mark:#6A2438; --mark-ink:#F7EEE6; --gap:#E57A92; --ok:#9CC27F;
+  --rag:#6F93D6; --react:#D0793A; --pe:#3FA58C; --hyb:#9B5C9E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1A1411; --surface:#241D19; --ink:#F1E9DF; --muted:#AC9D90; --rule:#3B312A;
+  --accent:#E07A93; --mark:#6A2438; --mark-ink:#F7EEE6; --gap:#E57A92; --ok:#9CC27F;
+  --rag:#6F93D6; --react:#D0793A; --pe:#3FA58C; --hyb:#9B5C9E; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:18px;line-height:1.55;margin:0}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:clamp(16px,4vw,48px)}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+mark{background:linear-gradient(transparent 12%,var(--mark) 12%,var(--mark) 88%,transparent 88%);color:var(--mark-ink);padding:0 .15em}
+
+/* hero */
+.hero{padding-block:clamp(48px,10vh,120px) clamp(32px,6vh,72px);display:grid;gap:20px;max-width:880px}
+.hero h1{font-size:clamp(44px,8.5vw,104px);font-weight:800;font-stretch:118%;line-height:.95;letter-spacing:-.02em}
+.hero h1 .two{font-stretch:68%;font-weight:700;color:var(--accent)}
+.dek{font-size:clamp(19px,2.2vw,24px);max-width:36em;margin:0}
+.byline{font-family:var(--mono);font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 18px}
+.cue{font-family:var(--mono);font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.cue span{display:inline-block;animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(5px)}}
+
+/* scrolly */
+.scrolly{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(24px,4vw,64px);position:relative}
+.steps{padding-block:12vh 30vh;display:grid;gap:0}
+.step{min-height:78vh;display:flex;align-items:center}
+.note{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:22px 24px;max-width:31em;transition:opacity .4s,border-color .4s;opacity:.38;min-width:0}
+.step.is-active .note{opacity:1;border-color:var(--accent)}
+.note .eyebrow{display:flex;gap:10px;margin-bottom:8px}
+.note .eyebrow b{color:var(--accent);font-weight:500}
+.note p{margin:0}
+.note p+p{margin-top:.7em}
+.note h3{font-size:24px;font-stretch:110%;font-weight:700;margin-bottom:8px}
+
+.stage-col{position:relative}
+.stage{position:sticky;top:env(safe-area-inset-top,0px);height:100svh;display:flex;align-items:center;padding-block:24px}
+.board{position:relative;width:100%;height:min(640px,calc(100svh - 48px));background:var(--surface);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.board::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--rule) 1px,transparent 1px);background-size:100% 32px;opacity:.35;pointer-events:none}
+.panel{position:absolute;inset:0;padding:clamp(16px,3vw,36px);display:flex;flex-direction:column;justify-content:center;gap:16px;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility 0s linear .5s;}
+.panel.on{opacity:1;visibility:visible;transition:opacity .5s ease,visibility 0s}
+.panel .tag{position:absolute;top:14px;left:clamp(16px,3vw,36px);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+/* P1 policy doc */
+.doc{background:var(--bg);border:1px solid var(--rule);padding:20px 22px;font-size:15px;max-width:440px;margin:0 auto;width:100%;box-shadow:0 1px 0 var(--rule),6px 6px 0 -1px var(--surface),6px 6px 0 0 var(--rule)}
+.doc h4{font-family:var(--display);font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 12px;display:flex;justify-content:space-between;gap:12px}
+.doc h4 span{font-family:var(--mono);font-weight:400;color:var(--muted);letter-spacing:0;text-transform:none}
+.clause{display:grid;grid-template-columns:2.6em 1fr;gap:8px;padding:7px 0;border-top:1px dashed var(--rule)}
+.clause .n{font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:2px}
+.clause.hot .t{transition:background-size .8s ease .2s;background:linear-gradient(var(--mark),var(--mark)) no-repeat left center/0% 78%;color:var(--ink)}
+.panel.on .clause.hot .t{background-size:100% 78%;color:var(--mark-ink)}
+.margin-q{font-family:var(--mono);font-size:12px;color:var(--gap);margin-top:10px;display:flex;gap:8px;align-items:center;opacity:0;transition:opacity .4s .9s}
+.panel.on .margin-q{opacity:1}
+
+/* P2 laundering flow */
+.flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;position:relative}
+.stagebox{border:1px solid var(--rule);background:var(--bg);padding:14px;min-width:0}
+.stagebox b{font-family:var(--display);font-stretch:110%;display:block;font-size:17px;margin-bottom:4px}
+.stagebox span{font-size:14px;color:var(--muted);display:block;line-height:1.4}
+.track{position:relative;height:56px;margin-top:4px}
+.track::before{content:"";position:absolute;left:4%;right:4%;top:50%;border-top:2px dashed var(--rule)}
+.coin{position:absolute;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);left:4%;animation:travel 5s linear infinite}
+.coin:nth-child(2){animation-delay:-1.7s}.coin:nth-child(3){animation-delay:-3.4s}
+@keyframes travel{0%{left:4%;opacity:0}8%{opacity:1}45%{transform:translateY(-14px)}55%{transform:translateY(12px)}92%{opacity:1}100%{left:calc(96% - 14px);opacity:0}}
+.flow-cap{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
+
+/* P3 fine */
+.fine{display:grid;gap:14px;max-width:480px;margin:0 auto;width:100%}
+.stamp{justify-self:start;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gap);border:2px solid var(--gap);padding:4px 10px;transform:rotate(-3deg)}
+.amount{font-family:var(--display);font-weight:800;font-stretch:115%;font-size:clamp(38px,6vw,72px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.amount small{font-size:.38em;font-weight:600;color:var(--muted);margin-right:.25em;letter-spacing:.04em}
+.fine dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;font-size:15px}
+.fine dt{font-family:var(--mono);font-size:12px;color:var(--muted);padding-top:3px}
+.fine dd{margin:0}
+
+/* P4 two regulators */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--ink);position:relative}
+.reg{padding:clamp(14px,2.5vw,24px);display:grid;gap:8px;align-content:start;min-width:0}
+.reg+.reg{border-left:1px solid var(--ink)}
+.reg h4{font-family:var(--display);font-size:clamp(22px,3vw,34px);font-stretch:120%;font-weight:800;margin:0}
+.reg .where{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.reg .rule{font-size:15px;border-top:1px dashed var(--rule);padding-top:8px}
+.reg .rule b{font-family:var(--display);font-size:clamp(28px,4vw,44px);font-stretch:100%;display:block;line-height:1.05;font-variant-numeric:tabular-nums}
+.verdict{font-family:var(--mono);font-size:13px;display:flex;align-items:center;gap:8px;opacity:0;transform:translateY(6px);transition:opacity .4s,transform .4s;margin-top:4px}
+.verdict.ok{color:var(--ok)} .verdict.bad{color:var(--gap)}
+.verdict i{font-style:normal;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;border:2px solid currentColor;font-weight:600}
+.board[data-state="5"] .verdict{opacity:1;transform:none}
+.ourpolicy{align-self:center;font-size:15px;background:var(--bg);border:1px solid var(--rule);padding:10px 14px;display:flex;gap:10px;align-items:center;opacity:0;transform:translateY(10px);transition:opacity .4s,transform .4s;max-width:100%}
+.board[data-state="5"] .ourpolicy{opacity:1;transform:none}
+.ourpolicy .eyebrow{white-space:nowrap}
+
+/* P5 question */
+.qbig{font-family:var(--display);font-weight:800;font-stretch:125%;font-size:clamp(90px,16vw,200px);line-height:.8;color:var(--accent);text-align:center}
+.shapes{display:flex;justify-content:center;gap:18px}
+.qtext{display:grid;gap:12px;max-width:470px;margin:0 auto}
+.qtext div{display:grid;grid-template-columns:3em 1fr;gap:8px;font-size:17px;border-top:1px solid var(--rule);padding-top:10px}
+.qtext .eyebrow{padding-top:3px}
+.board[data-state="6"] .qtext{display:none}
+.board[data-state="7"] .qbig,.board[data-state="7"] .shapes{display:none}
+.board[data-state="6"] .qhead{display:block}
+.qhead{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:center;display:none}
+
+/* P6 agents */
+.agents{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.agent{border:1px solid var(--rule);background:var(--bg);padding:14px;display:grid;gap:4px;align-content:start;min-width:0}
+.agent header{display:flex;align-items:center;gap:8px}
+.agent h4{font-family:var(--display);font-size:17px;font-stretch:105%;margin:0}
+.agent .role{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.agent p{margin:0;font-size:14px;line-height:1.4}
+.agent{opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
+.panel.on .agent{opacity:1;transform:none}
+.panel.on .agent:nth-child(2){transition-delay:.12s}.panel.on .agent:nth-child(3){transition-delay:.24s}.panel.on .agent:nth-child(4){transition-delay:.36s}
+.sw{flex:none}
+
+/* P7 pipeline */
+.pipe{display:grid;gap:0;counter-reset:s}
+.pstep{display:grid;grid-template-columns:2.2em minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--rule)}
+.pstep:last-child{border-bottom:1px solid var(--rule)}
+.pstep .k{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.pstep b{font-family:var(--display);font-stretch:108%;font-size:17px;display:block}
+.pstep span{font-size:14px;color:var(--muted);display:block;line-height:1.35}
+.chip{font-family:var(--mono);font-size:11px;border:1px solid var(--ink);padding:3px 7px;white-space:nowrap;border-radius:2px}
+.pipe-foot{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pipe-foot .chip{border-color:var(--muted)}
+
+/* P8 dots */
+.groups{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.grp{display:grid;gap:6px;min-width:0}
+.grp .lbl{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.3;min-height:2.6em}
+.dots{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.d{aspect-ratio:1;border-radius:50%;border:1.5px solid var(--ink)}
+.d.g{background:var(--ink)}
+.real{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--rule);padding-top:12px}
+.real .dots{display:flex;gap:4px}
+.real .d{width:13px}
+.real .d.g{background:var(--gap);border-color:var(--gap)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend .d{width:11px;display:inline-block}
+
+/* P9 scoring */
+.score{display:grid;gap:14px;max-width:500px;margin:0 auto;width:100%}
+.sq{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border:1px solid var(--ink)}
+.cell{padding:14px;display:grid;gap:4px;align-content:start;min-width:0}
+.cell:nth-child(odd){border-right:1px solid var(--ink)}
+.cell:nth-child(-n+2){border-bottom:1px solid var(--ink)}
+.cell b{font-family:var(--display);font-size:18px;font-stretch:108%}
+.cell span{font-size:13px;color:var(--muted);line-height:1.35}
+.cell.hit{background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.cell.fa{background:color-mix(in srgb,var(--gap) 12%,transparent)}
+.formula{display:grid;gap:8px;font-size:15px}
+.formula div{display:grid;grid-template-columns:5.4em 1fr;gap:10px;align-items:baseline}
+.formula .eyebrow{color:var(--ink)}
+
+/* charts */
+.chart-title{font-family:var(--display);font-size:clamp(17px,2vw,20px);font-stretch:106%;font-weight:700}
+.chart-sub{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.chart{width:100%;height:auto;max-height:calc(100% - 90px);display:block}
+.chart text{fill:var(--muted);font-family:var(--mono);font-size:12px}
+.chart .ax{stroke:var(--rule);stroke-width:1}
+.chart .axdark{stroke:var(--muted);stroke-width:1}
+.chart .lab{fill:var(--ink);font-size:12.5px}
+.chart .big{fill:var(--ink);font-family:var(--display);font-size:15px;font-weight:700}
+.pt{transition:transform .9s cubic-bezier(.6,0,.2,1),opacity .6s}
+.fade{transition:opacity .6s}
+.legend-row{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.legend-row span{display:inline-flex;align-items:center;gap:6px}
+
+/* P12 verdict */
+.pairs{display:grid;gap:10px}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,auto);gap:12px;align-items:center;border-top:1px solid var(--rule);padding-top:10px}
+.pair .task{font-size:16px}
+.pair .arrow{font-family:var(--mono);color:var(--muted);text-align:center}
+.pair .who{display:flex;align-items:center;gap:8px;font-family:var(--display);font-weight:700;font-stretch:105%}
+.pair small{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400}
+.verdict-h{font-family:var(--display);font-size:clamp(26px,3.6vw,40px);font-weight:800;font-stretch:112%;line-height:1.05}
+
+/* P13 bank */
+.queue{display:grid;gap:14px}
+.qrow{display:grid;gap:6px}
+.qrow header{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.qrow header b{font-family:var(--display);font-size:16px;color:var(--ink);display:flex;align-items:center;gap:6px}
+.bells{display:flex;flex-wrap:wrap;gap:3px}
+.bell{width:10px;height:16px;border-radius:2px}
+.bell.t{background:var(--ink)}
+.bell.f{background:transparent;border:1.5px solid var(--gap)}
+
+/* P14 limits */
+.limits{display:grid;gap:0}
+.limits div{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr);gap:14px;padding:11px 0;border-top:1px solid var(--rule);font-size:15px}
+.limits div:last-child{border-bottom:1px solid var(--rule)}
+.limits .eyebrow{color:var(--ink);padding-top:3px}
+
+/* outro */
+.outro{padding-block:clamp(56px,10vh,120px);display:grid;gap:28px;border-top:2px solid var(--accent)}
+.outro .name{font-family:var(--display);font-weight:800;font-stretch:118%;font-size:clamp(40px,7vw,80px);line-height:.95}
+.outro .meta{display:grid;gap:6px;max-width:44em}
+.outro p{margin:0}
+details{border-top:1px solid var(--rule);padding-top:14px;max-width:820px}
+summary{cursor:pointer;font-family:var(--mono);font-size:13px}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.tablewrap{overflow-x:auto;margin-top:14px}
+table{border-collapse:collapse;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;min-width:560px}
+th,td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.fineprint{font-family:var(--mono);font-size:12px;color:var(--muted);display:grid;gap:6px;max-width:60em}
+a{color:inherit;text-underline-offset:3px}
+
+/* phones: board pins to the top half, notes scroll under it */
+@media (max-width:820px){
+  body{font-size:17px}
+  .scrolly{grid-template-columns:minmax(0,1fr);gap:0}
+  .stage-col{order:-1;position:sticky;top:env(safe-area-inset-top,0px);z-index:2;height:0;overflow:visible}
+  .stage{position:relative;height:auto;padding-block:8px;background:var(--bg)}
+  .board{height:min(54svh,480px)}
+  .steps{padding-top:calc(min(54svh,480px) + 40px);padding-bottom:40vh;position:relative;z-index:1}
+  .step{min-height:72svh;align-items:flex-end}
+  .note{padding:18px;opacity:.9}
+  .panel{padding:14px;gap:10px}
+  .panel .tag{top:8px;left:14px}
+  .doc{font-size:13px;padding:14px}
+  .clause{padding:5px 0}
+  .stagebox{padding:9px}.stagebox b{font-size:14px}.stagebox span{font-size:12px}
+  .agents{gap:8px}.agent{padding:9px}.agent p{font-size:12px}.agent h4{font-size:15px}.agent .role{display:none}
+  .pstep{padding:7px 0;gap:8px}.pstep span{display:none}.pstep b{font-size:15px}
+  .groups{gap:6px}.dots{gap:2px}.grp .lbl{font-size:9.5px}
+  .cell{padding:9px}.cell span{display:none}
+  .formula{font-size:13px}
+  .pair .task{font-size:14px}.pair{padding-top:6px}
+  .limits div{font-size:13px;padding:7px 0;grid-template-columns:minmax(0,7em) minmax(0,1fr)}
+  .reg .rule{font-size:13px}
+  .chart{max-height:calc(100% - 64px)}
+  .chart text{font-size:16px}.chart .lab{font-size:16px}.chart .big{font-size:18px}
+  .chart-sub{font-size:11px}
+  .fine dl{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .coin{display:none}
+}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Agentic AI · Anti-money laundering · UAE</div>
+    <h1>One policy, <span class="two">two regulators.</span></h1>
+    <p class="dek">Can an AI agent spot where a bank's anti-money-laundering policy falls short of <mark>both</mark> of its regulators? I built four of them and put them to the test.</p>
+    <div class="byline"><span>Netra Uchil</span><span>MSc Data Science &amp; AI thesis</span><span>Middlesex University Dubai · 2026</span></div>
+    <div class="cue"><span aria-hidden="true">↓</span> Scroll to read</div>
+  </header>
+
+  <section class="scrolly" aria-label="The story">
+    <div class="steps">
+      <div class="step" data-panel="p-doc" data-state="1"><div class="note">
+        <div class="eyebrow"><b>01</b> The rulebook</div>
+        <p>Every bank keeps a rulebook for stopping dirty money. It is called an anti-money-laundering (AML) policy.</p>
+        <p>What if it is quietly missing a rule?</p>
+      </div></div>
+
+      <div class="step" data-panel="p-flow" data-state="2"><div class="note">
+        <div class="eyebrow"><b>02</b> What it guards against</div>
+        <p>Money laundering is how criminals make illegal money look legitimate. They place it in a bank, layer it through many accounts to hide where it came from, then pull it back out looking clean.</p>
+        <p>A bank's AML policy sets out how it spots and stops each stage.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-fine" data-state="3"><div class="note">
+        <div class="eyebrow"><b>03</b> The stakes</div>
+        <p>Regulators check these policies, and gaps are expensive. In 2023 Dubai's financial regulator, the DFSA, fined Mirabaud (Middle East) about USD 3 million after its systems missed suspicious patterns across linked customer accounts.</p>
+        <p>One of my real-world test cases is based on this enforcement action.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-split" data-state="4"><div class="note">
+        <div class="eyebrow"><b>04</b> The UAE twist</div>
+        <p>In the UAE, a bank can answer to two regulators. The Central Bank (CBUAE) covers the mainland. The DFSA covers the DIFC, Dubai's financial free zone.</p>
+        <p>Their AML rules overlap, but they do not match. Take record keeping: at least 5 years under one, at least 6 under the other.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-split" data-state="5"><div class="note">
+        <div class="eyebrow"><b>05</b> Why it's hard</div>
+        <p>So one policy can pass one regulator and fail the other. "Keep records for 5 years" is fine on the mainland and a gap in the DIFC.</p>
+        <p>Multiply that by hundreds of rules that point to each other. Checking by hand is slow and easy to get wrong.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-q" data-state="6"><div class="note">
+        <div class="eyebrow"><b>06</b> Why AI, and why this study</div>
+        <p>AI language models can read regulations. But the same model can be set up in very different ways, and nobody had tested which set-up works best for this UAE problem.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-q" data-state="7"><div class="note">
+        <div class="eyebrow"><b>07</b> The questions</div>
+        <p>My thesis asked two things. Can AI agents reliably find AML compliance gaps across both UAE regulators? And which agent design suits which kind of task?</p>
+      </div></div>
+
+      <div class="step" data-panel="p-agents" data-state="8"><div class="note">
+        <div class="eyebrow"><b>08</b> Four agents</div>
+        <p>I built four agents on the same AI model. The only difference is how each one works through a policy.</p>
+        <p>Each keeps its colour and shape for the rest of the story.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-pipe" data-state="9"><div class="note">
+        <div class="eyebrow"><b>09</b> How I built it</div>
+        <p>The regulations are cut into short passages and indexed by meaning, so an agent can pull up the right rule even when a policy words it differently.</p>
+        <p>An open-source model makes each call, set to its most consistent mode. Everything runs on one cloud data platform, so every result can be traced and repeated.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-dots" data-state="10"><div class="note">
+        <div class="eyebrow"><b>10</b> The test</div>
+        <p>300 policies written from the real rulebooks. Half hide a gap; half are fully compliant. They are split across five levels, from a single rule up to both regulators at once.</p>
+        <p>Ten more cases are based on real DFSA enforcement actions.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-score" data-state="11"><div class="note">
+        <div class="eyebrow"><b>11</b> How to score it</div>
+        <p>Two questions matter. Of the real gaps, how many did the agent catch? That is <b>recall</b>. Of the alarms it raised, how many were real? That is <b>precision</b>.</p>
+        <p>A useful agent needs both. <b>F1</b> combines them into one score.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-scatter" data-state="12"><div class="note">
+        <div class="eyebrow"><b>12</b> The twist, part 1</div>
+        <p>The RAG agent caught almost every gap: recall between 93% and 100% at all five levels.</p>
+        <p>Looks perfect.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-scatter" data-state="13"><div class="note">
+        <div class="eyebrow"><b>13</b> The twist, part 2</div>
+        <p>Now add precision. About half of RAG's alarms were false. It flagged nearly every policy, compliant or not.</p>
+        <p>A rule that simply says "gap" every time lands in the same spot. <mark>Near-perfect recall was a warning sign.</mark></p>
+      </div></div>
+
+      <div class="step" data-panel="p-f1" data-state="14"><div class="note">
+        <div class="eyebrow"><b>14</b> Who did best</div>
+        <p>Plan-and-Execute was the most precise agent at all five levels and had the highest average F1: 0.673, against 0.662 for RAG and 0.537 for ReAct.</p>
+        <p>But the error bars overlap, and only 2 of 15 head-to-head comparisons were statistically significant. These are consistent tendencies, not proof.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-real" data-state="15"><div class="note">
+        <div class="eyebrow"><b>15</b> Real-world cases</div>
+        <p>On the 10 cases based on real enforcement actions, the ranking changed. ReAct scored best (F1 0.769). Plan-and-Execute was the most precise, but it missed the most severe case.</p>
+        <p>Ten cases is a small sample, so this is a signal to test further.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-verdict" data-state="16"><div class="note">
+        <div class="eyebrow"><b>16</b> The verdict</div>
+        <p>No single design wins. The right agent depends on the job you give it.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-bank" data-state="17"><div class="note">
+        <div class="eyebrow"><b>17</b> Why a bank should care</div>
+        <p>Every false alarm costs an analyst's time. On the single-rule DFSA level, RAG raised 57 alarms for 30 real gaps; 29 were false. Plan-and-Execute raised 35, with 13 false, but missed 8 real gaps where RAG missed 2.</p>
+        <p>That trade-off is a business decision. A person should make the final call.</p>
+      </div></div>
+
+      <div class="step" data-panel="p-limits" data-state="18"><div class="note">
+        <div class="eyebrow"><b>18</b> What this isn't, yet</div>
+        <p>This is a first controlled comparison, not a finished product. The limits are on the board, and so is what I would build next.</p>
+      </div></div>
+    </div>
+
+    <div class="stage-col">
+      <div class="stage">
+        <div class="board" id="board" data-state="1" aria-live="polite">
+
+          <div class="panel on" id="p-doc">
+            <div class="tag">Exhibit A · a bank's AML policy</div>
+            <div class="doc" role="img" aria-label="An AML policy document with five clauses; the record-keeping clause is highlighted">
+              <h4>AML &amp; CFT Policy <span>v3.2 · internal</span></h4>
+              <div class="clause"><span class="n">4.1</span><span class="t">Customer due diligence before opening any account</span></div>
+              <div class="clause"><span class="n">4.2</span><span class="t">Senior management sign-off for politically exposed persons</span></div>
+              <div class="clause"><span class="n">4.3</span><span class="t">Ongoing monitoring of customer transactions</span></div>
+              <div class="clause"><span class="n">4.4</span><span class="t">Suspicious activity escalated to the MLRO</span></div>
+              <div class="clause hot"><span class="n">4.5</span><span class="t">Customer records kept for 5 years</span></div>
+              <div class="margin-q"><span aria-hidden="true">←</span> enough for every regulator?</div>
+            </div>
+          </div>
+
+          <div class="panel" id="p-flow">
+            <div class="tag">How laundering works</div>
+            <div class="flow">
+              <div class="stagebox"><b>Placement</b><span>Illegal cash enters a bank</span></div>
+              <div class="stagebox"><b>Layering</b><span>Moved through many accounts to hide its source</span></div>
+              <div class="stagebox"><b>Integration</b><span>Comes back out looking clean</span></div>
+            </div>
+            <div class="track" aria-hidden="true"><i class="coin"></i><i class="coin"></i><i class="coin"></i></div>
+            <div class="flow-cap">An AML policy needs a control at every stage</div>
+          </div>
+
+          <div class="panel" id="p-fine">
+            <div class="tag">Enforcement record</div>
+            <div class="fine">
+              <div class="stamp">DFSA fine</div>
+              <div class="amount"><small>USD</small>3,022,500</div>
+              <dl>
+                <dt>Firm</dt><dd>Mirabaud (Middle East) Limited</dd>
+                <dt>Issued</dt><dd>1 August 2023</dd>
+                <dt>Finding</dt><dd>Systems failed to detect suspicious patterns across interconnected customer accounts, June 2018 to October 2021</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="panel" id="p-split">
+            <div class="tag">Two rulebooks</div>
+            <div class="split">
+              <div class="reg">
+                <h4>CBUAE</h4>
+                <div class="where">Central Bank of the UAE · mainland</div>
+                <div class="rule">Keep records for at least<b>5 years</b></div>
+                <div class="verdict ok"><i>✓</i> policy passes</div>
+              </div>
+              <div class="reg">
+                <h4>DFSA</h4>
+                <div class="where">Dubai Financial Services Authority · DIFC</div>
+                <div class="rule">Keep records for at least<b>6 years</b></div>
+                <div class="verdict bad"><i>✕</i> gap found</div>
+              </div>
+            </div>
+            <div class="ourpolicy"><span class="eyebrow">Clause 4.5</span><span>"Customer records kept for <mark>5 years</mark>"</span></div>
+          </div>
+
+          <div class="panel" id="p-q">
+            <div class="tag">The research question</div>
+            <div class="qbig" aria-hidden="true">?</div>
+            <div class="qhead">Same model. Four ways to set it up.</div>
+            <div class="shapes" aria-hidden="true">
+              <svg class="sw" width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="var(--rag)"/></svg>
+              <svg class="sw" width="22" height="22" viewBox="0 0 22 22"><path d="M11 2 L20 19 L2 19 Z" fill="var(--react)"/></svg>
+              <svg class="sw" width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="3" width="16" height="16" fill="var(--pe)"/></svg>
+              <svg class="sw" width="22" height="22" viewBox="0 0 22 22"><path d="M11 1 L21 11 L11 21 L1 11 Z" fill="var(--hyb)"/></svg>
+            </div>
+            <div class="qtext">
+              <div><span class="eyebrow">RQ1</span><span>Can AI agents reliably find AML compliance gaps across both UAE regulators?</span></div>
+              <div><span class="eyebrow">RQ2</span><span>Which agent design suits which kind of compliance task?</span></div>
+            </div>
+          </div>
+
+          <div class="panel" id="p-agents">
+            <div class="tag">The four agents</div>
+            <div class="agents">
+              <div class="agent"><header><svg class="sw" width="16" height="16" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="var(--rag)"/></svg><h4>RAG</h4></header><div class="role">the quick lookup</div><p>Pulls the most relevant rules, then judges in one pass.</p></div>
+              <div class="agent"><header><svg class="sw" width="16" height="16" viewBox="0 0 22 22"><path d="M11 2 L20 19 L2 19 Z" fill="var(--react)"/></svg><h4>ReAct</h4></header><div class="role">the detective</div><p>Searches, reasons, searches again, step by step.</p></div>
+              <div class="agent"><header><svg class="sw" width="16" height="16" viewBox="0 0 22 22"><rect x="3" y="3" width="16" height="16" fill="var(--pe)"/></svg><h4>Plan-and-Execute</h4></header><div class="role">the auditor</div><p>Writes a checklist of rules first, then checks each one.</p></div>
+              <div class="agent"><header><svg class="sw" width="16" height="16" viewBox="0 0 22 22"><path d="M11 1 L21 11 L11 21 L1 11 Z" fill="var(--hyb)"/></svg><h4>Hybrid</h4></header><div class="role">the triage desk</div><p>Runs the quick lookup, and calls in the auditor when unsure.</p></div>
+            </div>
+          </div>
+
+          <div class="panel" id="p-pipe">
+            <div class="tag">Under the hood</div>
+            <div class="pipe">
+              <div class="pstep"><span class="k">01</span><div><b>Read the rulebooks</b><span>CBUAE and DFSA regulations cut into passages of about 500 words</span></div><span class="chip">512-word chunks</span></div>
+              <div class="pstep"><span class="k">02</span><div><b>Search by meaning</b><span>Each passage turned into numbers that capture what it says</span></div><span class="chip">Vector Search</span></div>
+              <div class="pstep"><span class="k">03</span><div><b>Make the call</b><span>The model reads policy and rules, then answers: gap or no gap</span></div><span class="chip">Llama 3.3 70B</span></div>
+              <div class="pstep"><span class="k">04</span><div><b>Score every answer</b><span>Same cases for every agent, tracked and repeatable</span></div><span class="chip">Databricks</span></div>
+            </div>
+            <div class="pipe-foot">Settings <span class="chip">temperature 0</span><span class="chip">bge-large embeddings</span></div>
+          </div>
+
+          <div class="panel" id="p-dots">
+            <div class="tag">The test set</div>
+            <div class="legend"><span><i class="d g"></i>policy with a hidden gap</span><span><i class="d"></i>compliant policy</span></div>
+            <div class="groups" id="groups"></div>
+            <div class="real"><span class="eyebrow">+ 10 real-world</span><div class="dots" id="realdots"></div><span class="chart-sub">based on DFSA enforcement</span></div>
+          </div>
+
+          <div class="panel" id="p-score">
+            <div class="tag">Scoring</div>
+            <div class="score">
+              <div class="sq">
+                <div class="cell hit"><b>Caught</b><span>Real gap, agent flagged it</span></div>
+                <div class="cell"><b>Missed</b><span>Real gap, agent said it was fine</span></div>
+                <div class="cell fa"><b>False alarm</b><span>Compliant, agent flagged it anyway</span></div>
+                <div class="cell"><b>Cleared</b><span>Compliant, agent said it was fine</span></div>
+              </div>
+              <div class="formula">
+                <div><span class="eyebrow">Recall</span><span>caught ÷ all real gaps</span></div>
+                <div><span class="eyebrow">Precision</span><span>caught ÷ all alarms raised</span></div>
+                <div><span class="eyebrow">F1</span><span>one score that balances the two</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" id="p-scatter">
+            <div class="tag">Result · 300 synthetic cases</div>
+            <div>
+              <div class="chart-title" id="sc-title">How many gaps RAG caught</div>
+              <div class="legend-row" id="sc-legend"></div>
+            </div>
+            <svg class="chart" id="scatter" viewBox="0 0 560 400" role="img" aria-label="Scatter of precision against recall for each agent at each of five levels"></svg>
+          </div>
+
+          <div class="panel" id="p-f1">
+            <div class="tag">Result · F1 by level</div>
+            <div>
+              <div class="chart-title">F1 score at each level, with 95% error bars</div>
+              <div class="legend-row" id="f1-legend"></div>
+            </div>
+            <svg class="chart" id="f1chart" viewBox="0 0 560 380" role="img" aria-label="F1 score by level for RAG, ReAct and Plan-and-Execute with confidence intervals"></svg>
+          </div>
+
+          <div class="panel" id="p-real">
+            <div class="tag">Result · 10 real-world cases</div>
+            <div>
+              <div class="chart-title">F1 on enforcement-based cases</div>
+              <div class="chart-sub">5 with a real gap, 5 compliant counterparts</div>
+            </div>
+            <svg class="chart" id="realchart" viewBox="0 0 560 300" role="img" aria-label="F1 on 10 real-world cases: RAG 0.667, ReAct 0.769, Plan-and-Execute 0.727, Hybrid 0.667"></svg>
+          </div>
+
+          <div class="panel" id="p-verdict">
+            <div class="tag">Verdict</div>
+            <div class="verdict-h">Match the architecture to the task.</div>
+            <div class="pairs">
+              <div class="pair"><span class="task">Complex reasoning across several rules</span><span class="arrow">→</span><span class="who"><svg width="14" height="14" viewBox="0 0 22 22"><rect x="3" y="3" width="16" height="16" fill="var(--pe)"/></svg><span>Plan-and-Execute<small>most precise, 5 of 5 levels</small></span></span></div>
+              <div class="pair"><span class="task">Broad search across both regulators</span><span class="arrow">→</span><span class="who"><svg width="14" height="14" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="var(--rag)"/></svg><span>RAG<small>best F1 on the two-regulator level</small></span></span></div>
+              <div class="pair"><span class="task">Showing its evidence on real cases</span><span class="arrow">→</span><span class="who"><svg width="14" height="14" viewBox="0 0 22 22"><path d="M11 2 L20 19 L2 19 Z" fill="var(--react)"/></svg><span>ReAct<small>cited the exact rule in 6 of 10</small></span></span></div>
+            </div>
+          </div>
+
+          <div class="panel" id="p-bank">
+            <div class="tag">The analyst's inbox · single-rule DFSA level</div>
+            <div class="legend"><span><i class="bell t" style="display:inline-block"></i>real gap flagged</span><span><i class="bell f" style="display:inline-block"></i>false alarm</span></div>
+            <div class="queue" id="queue"></div>
+          </div>
+
+          <div class="panel" id="p-limits">
+            <div class="tag">Limits and next steps</div>
+            <div class="limits">
+              <div><span class="eyebrow">Test data</span><span>The 300 policies were generated by AI from the real rulebooks, not taken from banks.</span></div>
+              <div><span class="eyebrow">One model</span><span>Every agent used Llama 3.3 70B; other models may rank differently.</span></div>
+              <div><span class="eyebrow">Small real set</span><span>Only 10 enforcement-based cases.</span></div>
+              <div><span class="eyebrow">Not deployable</span><span>The demo app is for demonstration. A compliance officer must review every finding.</span></div>
+              <div><span class="eyebrow">Next</span><span>Smarter rule retrieval, other models, and weighting gaps by severity.</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="outro">
+    <div class="name">Netra Uchil</div>
+    <div class="meta">
+      <p>MSc Data Science &amp; AI, Middlesex University Dubai</p>
+      <p class="chart-sub">Thesis: Agentic AI for AML Compliance Gap Detection Across UAE Dual Jurisdiction (2026). Supervised by Dr. Sidhhaling Urolagin.</p>
+    </div>
+    <details>
+      <summary>See the numbers behind the charts</summary>
+      <div class="tablewrap"><table id="numtable"><thead><tr><th>Level</th><th>Agent</th><th>F1</th><th>95% CI</th><th>Precision</th><th>Recall</th><th>Caught</th><th>False alarms</th><th>Missed</th><th>Cleared</th></tr></thead><tbody></tbody></table></div>
+    </details>
+    <div class="fineprint">
+      <span>Final evaluation: 60 policies per level (30 with a gap, 30 compliant). Error bars are bootstrap 95% confidence intervals (10,000 resamples); significance from McNemar's test. "Insufficient evidence" answers count as "no gap".</span>
+      <span>Fine details: <a href="https://www.dfsa.ae/news/dfsa-fines-bank-mirabaud-usd-3-million-anti-money-laundering-controls-failings" target="_blank" rel="noopener">DFSA press release, 1 August 2023</a>.</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const LEVELS=[
+    {k:"SA-DFSA", name:"One rule · DFSA", ax:["1 rule","DFSA"]},
+    {k:"SA-CBUAE", name:"One rule · CBUAE", ax:["1 rule","CBUAE"]},
+    {k:"MA-DFSA", name:"Several rules · DFSA", ax:["Multi","DFSA"]},
+    {k:"MA-CBUAE", name:"Several rules · CBUAE", ax:["Multi","CBUAE"]},
+    {k:"MJ", name:"Both regulators", ax:["Both","regulators"]}];
+  const AG={rag:{n:"RAG",c:"var(--rag)",s:"circle"},react:{n:"ReAct",c:"var(--react)",s:"tri"},pe:{n:"Plan-and-Execute",c:"var(--pe)",s:"sq"},hyb:{n:"Hybrid",c:"var(--hyb)",s:"dia"}};
+  // [f1, lo, hi, precision, recall, tp, fp, fn, tn] from NB10–NB14 results
+  const R={
+    "SA-DFSA":{rag:[.644,.518,.753,.491,.933,28,29,2,1],react:[.516,.351,.657,.5,.533,16,16,14,14],pe:[.677,.533,.794,.629,.733,22,13,8,17]},
+    "SA-CBUAE":{rag:[.659,.537,.766,.5,.967,29,29,1,1],react:[.611,.467,.732,.524,.733,22,20,8,10],pe:[.725,.603,.824,.58,.967,29,21,1,9]},
+    "MA-DFSA":{rag:[.667,.537,.775,.5,1,30,30,0,0],react:[.444,.281,.588,.424,.467,14,19,16,11],pe:[.667,.528,.78,.571,.8,24,18,6,12]},
+    "MA-CBUAE":{rag:[.652,.537,.75,.491,.967,29,30,1,0],react:[.605,.466,.723,.5,.767,23,23,7,7],pe:[.691,.563,.796,.549,.933,28,23,2,7]},
+    "MJ":{rag:[.69,.568,.791,.526,1,30,27,0,3],react:[.508,.345,.657,.517,.5,15,14,15,16],pe:[.603,.449,.733,.576,.633,19,14,11,16]}};
+  const REAL=[["rag",.667,.5],["react",.769,.625],["pe",.727,.667],["hyb",.667,.5]];
+  const NS="http://www.w3.org/2000/svg";
+  const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+  function shape(kind,size,fill,parent){
+    const s=size;let e;
+    if(kind==="circle")e=el("circle",{r:s,fill},parent);
+    else if(kind==="tri")e=el("path",{d:`M0 ${-s*1.15} L${s*1.1} ${s*.85} L${-s*1.1} ${s*.85} Z`,fill},parent);
+    else if(kind==="sq")e=el("rect",{x:-s*.9,y:-s*.9,width:s*1.8,height:s*1.8,fill},parent);
+    else e=el("path",{d:`M0 ${-s*1.2} L${s*1.2} 0 L0 ${s*1.2} L${-s*1.2} 0 Z`,fill},parent);
+    e.setAttribute("stroke","var(--surface)");e.setAttribute("stroke-width","2");return e}
+  function legend(id,keys){const L=document.getElementById(id);keys.forEach(k=>{const sp=document.createElement("span");const sv=el("svg",{width:14,height:14,viewBox:"-8 -8 16 16"});shape(AG[k].s,5.5,AG[k].c,sv);sp.appendChild(sv);sp.append(AG[k].n);L.appendChild(sp)})}
+
+  // dots
+  const G=document.getElementById("groups");
+  LEVELS.forEach(l=>{const g=document.createElement("div");g.className="grp";g.innerHTML=`<div class="lbl">${l.name}</div>`;const d=document.createElement("div");d.className="dots";d.setAttribute("role","img");d.setAttribute("aria-label",`${l.name}: 30 policies with a gap, 30 compliant`);for(let i=0;i<60;i++){const x=document.createElement("i");x.className="d"+(i%2===0?" g":"");d.appendChild(x)}g.appendChild(d);G.appendChild(g)});
+  const RD=document.getElementById("realdots");for(let i=0;i<10;i++){const x=document.createElement("i");x.className="d"+(i<5?" g":"");RD.appendChild(x)}
+
+  // scatter
+  const S=document.getElementById("scatter");const W=560,H=400,m={l:58,r:22,t:18,b:50};
+  const px=p=>m.l+(p-.3)/(.8-.3)*(W-m.l-m.r), ry=r=>m.t+(1.04-r)/(1.04-.4)*(H-m.t-m.b);
+  const grid=el("g",{},S);
+  [.4,.5,.6,.7,.8,.9,1].forEach(v=>{el("line",{x1:m.l,x2:W-m.r,y1:ry(v),y2:ry(v),class:"ax"},grid);el("text",{x:m.l-10,y:ry(v)+4,"text-anchor":"end"},grid).textContent=Math.round(v*100)+"%"});
+  const ylab=el("text",{x:14,y:ry(.72),transform:`rotate(-90 14 ${ry(.72)})`,"text-anchor":"middle",class:"lab"},S);ylab.textContent="Recall: gaps caught";
+  const xg=el("g",{class:"fade"},S);
+  [.3,.4,.5,.6,.7,.8].forEach(v=>{el("line",{x1:px(v),x2:px(v),y1:m.t,y2:H-m.b,class:"ax"},xg);el("text",{x:px(v),y:H-m.b+18,"text-anchor":"middle"},xg).textContent=Math.round(v*100)+"%"});
+  el("text",{x:(m.l+W-m.r)/2,y:H-8,"text-anchor":"middle",class:"lab"},xg).textContent="Precision: alarms that were real →";
+  // iso-F1 curve for 0.667
+  const iso=el("g",{class:"fade"},S);let d="";for(let p=.5;p<=.8001;p+=.01){const r=.6667*p/(2*p-.6667);d+=(d?"L":"M")+px(p).toFixed(1)+" "+ry(Math.min(r,1.04)).toFixed(1)}
+  el("path",{d,fill:"none",stroke:"var(--muted)","stroke-width":1.5,"stroke-dasharray":"5 4"},iso);
+  el("text",{x:px(.79),y:ry(.555)+16,"text-anchor":"end"},iso).textContent="F1 = 0.667";
+  // baseline marker
+  const base=el("g",{class:"fade",transform:`translate(${px(.5)},${ry(1)})`},S);
+  el("circle",{r:15,fill:"none",stroke:"var(--ink)","stroke-width":1.5,"stroke-dasharray":"3 3"},base);
+  const bl=el("text",{x:-22,y:-20,"text-anchor":"end",class:"lab"},base);bl.textContent="Always says “gap”";
+  const ptsG=el("g",{},S);const PTS=[];
+  ["react","pe","rag"].forEach(a=>LEVELS.forEach((l,i)=>{const v=R[l.k][a];const g=el("g",{class:"pt"},ptsG);shape(AG[a].s,7,AG[a].c,g);const t=el("title",{},g);t.textContent=`${AG[a].n} · ${l.name}: precision ${Math.round(v[3]*100)}%, recall ${Math.round(v[4]*100)}%, F1 ${v[0].toFixed(3)}`;PTS.push({a,i,v,g})}));
+  legend("sc-legend",["rag","react","pe"]);
+  const scLegend=document.getElementById("sc-legend");
+  function scatterState(s){
+    const twist=s>=13;
+    xg.style.opacity=twist?1:0;iso.style.opacity=twist?1:0;base.style.opacity=twist?1:0;scLegend.style.opacity=twist?1:0;
+    document.getElementById("sc-title").textContent=twist?"Precision vs recall, every agent at every level":"How many gaps RAG caught, level by level";
+    PTS.forEach(p=>{const x=twist?px(p.v[3]):px(.4)+p.i*42, y=ry(p.v[4]);p.g.setAttribute("transform",`translate(${x},${y})`);p.g.style.transform=`translate(${x}px,${y}px)`;p.g.style.opacity=p.a==="rag"?1:(twist?.9:0)})}
+
+  // F1 bars
+  const F=document.getElementById("f1chart");const FW=560,FH=380,fm={l:44,r:10,t:16,b:58};
+  const fy=v=>fm.t+(1-v)*(FH-fm.t-fm.b);const gw=(FW-fm.l-fm.r)/5;
+  [0,.25,.5,.75,1].forEach(v=>{el("line",{x1:fm.l,x2:FW-fm.r,y1:fy(v),y2:fy(v),class:"ax"},F);el("text",{x:fm.l-8,y:fy(v)+4,"text-anchor":"end"},F).textContent=v.toFixed(2)});
+  const bw=Math.min(22,gw/5);
+  LEVELS.forEach((l,i)=>{const cx=fm.l+gw*i+gw/2;["rag","react","pe"].forEach((a,j)=>{const v=R[l.k][a];const x=cx+(j-1)*(bw+3)-bw/2;const h=fy(0)-fy(v[0]);
+      const g=el("g",{},F);el("path",{d:`M${x} ${fy(0)} V${fy(v[0])+3} Q${x} ${fy(v[0])} ${x+3} ${fy(v[0])} H${x+bw-3} Q${x+bw} ${fy(v[0])} ${x+bw} ${fy(v[0])+3} V${fy(0)} Z`,fill:AG[a].c},g);
+      el("line",{x1:x+bw/2,x2:x+bw/2,y1:fy(v[1]),y2:fy(v[2]),stroke:"var(--ink)","stroke-width":1.5},g);
+      el("line",{x1:x+bw/2-4,x2:x+bw/2+4,y1:fy(v[1]),y2:fy(v[1]),stroke:"var(--ink)","stroke-width":1.5},g);
+      el("line",{x1:x+bw/2-4,x2:x+bw/2+4,y1:fy(v[2]),y2:fy(v[2]),stroke:"var(--ink)","stroke-width":1.5},g);
+      el("title",{},g).textContent=`${AG[a].n} · ${l.name}: F1 ${v[0].toFixed(3)} (95% CI ${v[1].toFixed(2)}–${v[2].toFixed(2)})`;
+      el("rect",{x:x-2,y:fm.t,width:bw+4,height:fy(0)-fm.t,fill:"transparent"},g)});
+    l.ax.forEach((w,k)=>{el("text",{x:cx,y:FH-fm.b+18+k*15,"text-anchor":"middle"},F).textContent=w})});
+  el("line",{x1:fm.l,x2:FW-fm.r,y1:fy(.667),y2:fy(.667),stroke:"var(--ink)","stroke-width":1.5,"stroke-dasharray":"5 4"},F);
+  el("text",{x:fm.l+6,y:fy(.93),class:"lab"},F).textContent="Dashed line: score for always saying “gap” (0.667)";
+  legend("f1-legend",["rag","react","pe"]);
+
+  // real-world bars
+  const Rc=document.getElementById("realchart");const RW=560,RH=300,rm={l:196,r:60,t:10,b:34};
+  const rx=v=>rm.l+v*(RW-rm.l-rm.r);const rowH=(RH-rm.t-rm.b)/4;
+  [0,.25,.5,.75,1].forEach(v=>{el("line",{x1:rx(v),x2:rx(v),y1:rm.t,y2:RH-rm.b,class:"ax"},Rc);el("text",{x:rx(v),y:RH-rm.b+18,"text-anchor":"middle"},Rc).textContent=v.toFixed(2)});
+  REAL.forEach(([a,f1,p],i)=>{const y=rm.t+i*rowH+rowH*.22,h=rowH*.56;const g=el("g",{},Rc);
+    el("path",{d:`M${rx(0)} ${y} H${rx(f1)-4} Q${rx(f1)} ${y} ${rx(f1)} ${y+4} V${y+h-4} Q${rx(f1)} ${y+h} ${rx(f1)-4} ${y+h} H${rx(0)} Z`,fill:AG[a].c},g);
+    const lg=el("g",{transform:`translate(${rm.l-182},${y+h/2})`},g);shape(AG[a].s,5.5,AG[a].c,lg);
+    el("text",{x:rm.l-170,y:y+h/2+4,class:"lab"},g).textContent=AG[a].n;
+    el("text",{x:rx(f1)+8,y:y+h/2+4,class:a==="react"?"big":"lab"},g).textContent=f1.toFixed(3);
+    el("title",{},g).textContent=`${AG[a].n}: F1 ${f1.toFixed(3)}, precision ${p.toFixed(3)}`});
+  el("line",{x1:rx(.667),x2:rx(.667),y1:rm.t,y2:RH-rm.b,stroke:"var(--ink)","stroke-width":1.5,"stroke-dasharray":"5 4"},Rc);
+
+  // analyst queue
+  const Q=document.getElementById("queue");
+  [["rag",28,29,2],["pe",22,13,8]].forEach(([a,tp,fp,fn])=>{const row=document.createElement("div");row.className="qrow";
+    row.innerHTML=`<header><b><svg width="14" height="14" viewBox="-8 -8 16 16"></svg>${AG[a].n}</b><span>${tp+fp} alarms · ${fp} false · ${fn} real gaps missed</span></header><div class="bells" role="img" aria-label="${AG[a].n}: ${tp} real gaps flagged, ${fp} false alarms"></div>`;
+    shape(AG[a].s,5.5,AG[a].c,row.querySelector("svg"));const b=row.querySelector(".bells");
+    for(let i=0;i<tp;i++){const x=document.createElement("i");x.className="bell t";b.appendChild(x)}
+    for(let i=0;i<fp;i++){const x=document.createElement("i");x.className="bell f";b.appendChild(x)}
+    Q.appendChild(row)});
+
+  // table
+  const TB=document.querySelector("#numtable tbody");
+  LEVELS.forEach(l=>["rag","react","pe"].forEach(a=>{const v=R[l.k][a];const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${l.name}</td><td>${AG[a].n}</td><td>${v[0].toFixed(3)}</td><td>${v[1].toFixed(2)}–${v[2].toFixed(2)}</td><td>${v[3].toFixed(3)}</td><td>${v[4].toFixed(3)}</td><td>${v[5]}</td><td>${v[6]}</td><td>${v[7]}</td><td>${v[8]}</td>`;TB.appendChild(tr)}));
+
+  // scroll driver
+  const board=document.getElementById("board");const panels=[...board.querySelectorAll(".panel")];const steps=[...document.querySelectorAll(".step")];
+  function activate(step){
+    steps.forEach(s=>s.classList.toggle("is-active",s===step));
+    const pid=step.dataset.panel,st=step.dataset.state;board.dataset.state=st;
+    panels.forEach(p=>p.classList.toggle("on",p.id===pid));
+    if(pid==="p-scatter")scatterState(+st)}
+  scatterState(12);activate(steps[0]);
+  if("IntersectionObserver" in window){
+    // phones: notes sit low under the pinned board, so watch a lower band
+    const mq=matchMedia("(max-width:820px)");let io=null;
+    function bind(){if(io)io.disconnect();io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)activate(e.target)})},{rootMargin:mq.matches?"-68% 0px -22% 0px":"-45% 0px -45% 0px"});steps.forEach(s=>io.observe(s))}
+    bind();if(mq.addEventListener)mq.addEventListener("change",bind);
+  }
+})();
+</script>
+
+</body>
+</html>
